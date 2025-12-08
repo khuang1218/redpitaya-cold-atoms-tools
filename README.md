@@ -195,4 +195,3 @@ or double locking:
 This project is released under the **MIT License**.
 See the file: **[LICENSE](LICENSE)**.
 
----
