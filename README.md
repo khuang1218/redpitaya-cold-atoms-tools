@@ -1,12 +1,15 @@
 # Red Pitaya Tools for Cold Atoms Experiments
 
-This repository contains **C-based control and acquisition programs** developed for use with
+This repository contains **C and Python programs** developed for use with
 **Red Pitaya** hardware in **cold atoms**, **laser spectroscopy**, and **quantum optics** experiments.  
 The tools included here were originally developed for real AMO laboratory systems (laser locking,
-AOM ramping, photodiode-triggered sequences).
+AOM ramping, spectroscopy, and phase‐noise measurement).
 
-All programs use the official Red Pitaya C API (`redpitaya/rp.h`) and are designed to run directly
+All **C programs** use the official Red Pitaya C API (`redpitaya/rp.h`) and are designed to run directly
 on the Red Pitaya board or via remote compilation.
+
+All **Python programs** use SCPI communication over Ethernet via the `redpitaya_scpi` module for
+remote data acquisition and control.
 
 ---
 
@@ -21,9 +24,13 @@ redpitaya-cold-atoms-tools/
 │   │   ├── continuous_ramp.c
 │   │   └── Makefile
 │   │
-│   └── laser_lock_pid/
-│       ├── laser_lock_pid.c
-│       └── Makefile
+│   ├── laser_lock_pid/
+│   │   ├── laser_lock_pid.c
+│   │   └── Makefile
+│   │
+│   └── python/
+│       ├── laser_lock_scpi.py
+│       └── phase_noise_measurement.py
 │
 ├── docs/
 │   └── images
@@ -34,7 +41,7 @@ redpitaya-cold-atoms-tools/
 
 ---
 
-# 🔧 **1. continuous_ramp — Controlled Amplitude & Offset Ramp Generator**
+# 🔧 **1. continuous_ramp — Controlled Amplitude & Offset Ramp Generator (C)**
 
 **Folder:** `src/continuous_ramp/`  
 **File:** `continuous_ramp.c`
@@ -46,20 +53,19 @@ It is intended for:
 - adiabatic laser intensity ramps  
 - AOM RF amplitude ramps  
 - controlled turn-on/off sequences  
-- experiments requiring trigger-synchronized amplitude shaping like in second stage cooling of cold Sr experiment.
+- second-stage cooling in cold strontium experiments  
+- general trigger-synchronized amplitude shaping  
 
 ## **Features**
 ✔ Selectable waveform: triangle, sine, ramp up, ramp down  
 ✔ Threshold-based triggering via ADC  
-✔ Smooth amplitude decay using configurable time constants  
+✔ Smooth amplitude decay using configurable time steps  
 ✔ DC offset ramping linked to amplitude  
-✔ Continuous looping operation  
+✔ Continuous looping operation in experiments  
 
 ---
 
 ## **Build Instructions**
-
-From inside this folder:
 
 ```bash
 cd src/continuous_ramp
@@ -96,28 +102,26 @@ continuous_ramp
 ./continuous_ramp 0.5 40 0.02 7000 1
 ```
 
-This generates a 7 kHz sine wave, waits for a threshold crossing, then ramps amplitude down.
-
 ---
 
-# 🔧 **2. laser_lock_pid — Laser Locking with Peak Detection and PID Feedback**
+# 🔧 **2. laser_lock_pid — Laser Locking with Peak Detection and PID Feedback (C)**
 
 **Folder:** `src/laser_lock_pid/`
 **File:** `laser_lock_pid.c`
 
 This program implements a **laser locking system** using Red Pitaya:
 
-1. Generates a scanning waveform (e.g., for a scanning cavity).
+1. Generates a scanning waveform (e.g., transfer cavity scan).
 2. Acquires photodiode data from an ADC channel.
 3. Detects **one or more spectral peaks** using derivatives & thresholds.
-4. Computes frequency/position **error** to user-provided setpoints.
+4. Computes frequency/position **error** relative to user-defined setpoints.
 5. Applies **PID feedback** via analog outputs to stabilize a laser.
 
-This reflects real AMO lab control logic for:
+This reflects real AMO lab practices such as:
 
-* scanning transfer cavity locking for slave lasers to a master laser
+* cavity‐based slave laser locking to a master laser
 * saturated absorption locking
-* double locking via relative peak spacing
+* double locking using relative peak spacing
 
 ---
 
@@ -125,10 +129,10 @@ This reflects real AMO lab control logic for:
 
 ✔ External or internal trigger-based acquisition
 ✔ Peak detection using derivative filtering
-✔ Absolute and relative peak-position locking
-✔ Two-channel PID feedback (e.g., AOM + piezo)
+✔ Absolute and relative peak‐position locking
+✔ Two‐channel PID feedback (e.g., piezo + AOM)
 ✔ Optional live plotting using gnuplot
-✔ Safety limits to prevent DC output over/underflow
+✔ Safety limits for analog outputs
 
 ---
 
@@ -149,49 +153,125 @@ laser_lock_pid
 
 ## **Usage**
 
-General form:
-
 ```bash
 ./laser_lock_pid <delay> <pause> <set0> <Kp0> <Ki0> <Dc0> [<set1> <Kp1> <Ki1> <Dc1> <loop>]
 ```
 
 ### **Argument Description**
 
-| Argument                    | Meaning                                                      |
-| --------------------------- | ------------------------------------------------------------ |
-| `delay`                     | Trigger delay in samples                                     |
-| `pause`                     | Wait time after trigger before reading buffer (µs)           |
-| `set0`                      | Desired index of first peak                                  |
-| `Kp0`, `Ki0`                | PID gains for first feedback channel                         |
-| `Dc0`                       | Initial DC value of analog output 0                          |
-| `set1`, `Kp1`, `Ki1`, `Dc1` | (optional) second lock channel using relative peak positions |
-| `loop`                      | Number of cycles (0 or omitted → infinite)                   |
+| Argument                    | Meaning                                            |
+| --------------------------- | -------------------------------------------------- |
+| `delay`                     | Trigger delay in samples                           |
+| `pause`                     | Wait time after trigger before reading buffer (µs) |
+| `set0`                      | Desired index of first spectral peak               |
+| `Kp0`, `Ki0`                | PID gains for first feedback channel               |
+| `Dc0`                       | Initial DC output level                            |
+| `set1`, `Kp1`, `Ki1`, `Dc1` | (optional) second peak & second PID loop           |
+| `loop`                      | Number of cycles (0 or omitted → infinite)         |
 
-### **Example**
+---
+
+# 🧪 **3. laser_lock_scpi.py — Python SCPI-Based Laser Locking (Ethernet/IP)**
+
+**Folder:** `src/python/laser_lock_scpi.py`
+
+This Python program performs **laser locking via SCPI over Ethernet**, allowing Red Pitaya to be controlled
+remotely without SSH.
+
+It implements:
+
+* waveform acquisition using `ACQ:SOUR1:DATA?`
+* three-peak spectroscopy detection
+* real-time PID correction
+* control of AOUT0 and output offsets (`SOUR:VOLT:OFFS`)
+* saving of lock performance data
+* plotting peak positions vs. time
+
+### **Usage**
 
 ```bash
-./laser_lock_pid 8192 90000 350 0.001 0.0005 0.5
+python laser_lock_scpi.py <rp_ip> <setpoint1> <setpoint2> <loop>
 ```
 
-or double locking:
+Example:
 
 ```bash
-./laser_lock_pid 8192 90000 350 0.001 0.0005 0.5  720 0.002 0.0001 0.0  0
+python laser_lock_scpi.py 192.168.1.120 500 6500 0
 ```
+
+This locks:
+
+* first peak near index 500
+* second peak at relative position (6500–500)
+* runs until stopped or limit conditions are triggered
+
+### **Dependencies**
+
+```bash
+pip install numpy matplotlib
+```
+
+Plus:
+
+* `redpitaya_scpi` Python module (Ethernet/SCPI interface)
+
+---
+
+# 📡 **4. phase_noise_measurement.py — FFT-Based Phase Noise & Frequency Tracking (Python)**
+
+**Folder:** `src/python/phase_noise_measurement.py`
+
+This program measures **phase noise and frequency fluctuations** around a carrier by:
+
+1. Acquiring a waveform buffer via SCPI
+2. Computing an FFT
+3. Selecting a **narrow frequency window** around a carrier (e.g. ±1 MHz)
+4. Finding the peak frequency
+5. Computing frequency error
+6. Applying PID feedback via analog output
+7. Updating a real-time FFT plot
+
+This is useful for:
+
+* measuring frequency noise of RF sources
+* locking a DDS/AOM frequency
+* characterizing oscillator stability
+
+### **Real-Time Plot Shows**
+
+* FFT magnitude in selected window
+* desired frequency (red dashed line)
+* measured frequency (green line)
+
+### **Safety Check**
+
+PID output is constrained to **0–3.25 V**.
+If exceeded → loop stops automatically.
 
 ---
 
 # 🧰 **Requirements**
 
-* Red Pitaya STEMlab board (125-14 / 122-16 or similar)
+### Hardware
+
+* Red Pitaya STEMlab board (125-14 / 122-16)
+
+### For C Programs
+
 * Red Pitaya C API installed (`rp.h`)
-* GCC
-* Optional: `gnuplot` for live plotting
+* GCC compiler
+* (Optional) gnuplot
+
+### For Python Programs
+
+* Python 3
+* `numpy`, `matplotlib`
+* `redpitaya_scpi` SCPI/Ethernet module
+* Ability to reach Red Pitaya via LAN/WiFi (`rp_s = scpi.scpi("<IP>")`)
 
 ---
 
-# 📜 License
+# 📜 **License**
 
 This project is released under the **MIT License**.
 See the file: **[LICENSE](LICENSE)**.
-
