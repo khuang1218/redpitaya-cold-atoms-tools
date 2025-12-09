@@ -2,7 +2,7 @@
 """
 Created on Fri Jun  7 16:32:26 2024
 
-@author: tiwaribs
+@author: balsant
 """
 
 import numpy as np
@@ -105,7 +105,7 @@ plt.close()
 # """
 # Created on Fri Jun  7 16:32:26 2024
 # Alternate version
-# @author: tiwaribs
+# @author: balsant
 # """
 
 # import numpy as np
