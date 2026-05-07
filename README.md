@@ -20,6 +20,10 @@ remote data acquisition and control.
 redpitaya-cold-atoms-tools/
 │
 ├── src/
+│   ├── sine_wave_generator/
+│   │   ├── sine_wave_generator.c
+│   │   └── Makefile
+│   │
 │   ├── continuous_ramp/
 │   │   ├── continuous_ramp.c
 │   │   └── Makefile
@@ -29,7 +33,9 @@ redpitaya-cold-atoms-tools/
 │   │   └── Makefile
 │   │
 │   └── python/
+│       ├── fpga_data_exchange_scpi.py
 │       ├── laser_lock_scpi.py
+│       ├── sine_wave_scpi.py
 │       └── phase_noise_measurement.py
 │
 ├── docs/
@@ -38,6 +44,131 @@ redpitaya-cold-atoms-tools/
 └── examples
 
 ````
+
+---
+
+# Sine Wave Generator - Fixed-Frequency FPGA Output (C)
+
+**Folder:** `src/sine_wave_generator/`  
+**File:** `sine_wave_generator.c`
+
+This tool outputs a continuous sine wave from one Red Pitaya fast analog output.
+It is intended for simple FPGA-based RF/test-signal generation where you want to set
+the frequency directly from the command line.
+
+## **Features**
+
+* Sine waveform output on OUT1 or OUT2
+* User-set frequency, amplitude, and DC offset
+* Optional timed run
+* Ctrl+C shutdown for continuous operation
+* Output range check to avoid exceeding about +/-1 V on the fast outputs
+
+---
+
+## **Build Instructions**
+
+```bash
+cd src/sine_wave_generator
+make
+```
+
+This generates:
+
+```bash
+sine_wave_generator
+```
+
+---
+
+## **Usage**
+
+```bash
+./sine_wave_generator <frequency_hz> [amplitude_v] [offset_v] [channel] [duration_s]
+```
+
+### **Arguments**
+
+| Argument       | Meaning                                      | Default |
+| -------------- | -------------------------------------------- | ------- |
+| `frequency_hz` | Output sine frequency in Hz                  | required |
+| `amplitude_v`  | Peak amplitude in V, 0 to 1                  | 0.5 |
+| `offset_v`     | DC offset in V, -1 to 1                      | 0.0 |
+| `channel`      | Fast analog output channel, 1=OUT1 or 2=OUT2 | 1 |
+| `duration_s`   | Run time in seconds. 0 means until Ctrl+C    | 0 |
+
+### **Examples**
+
+```bash
+./sine_wave_generator 1000
+./sine_wave_generator 7000 0.4 0.0 1
+./sine_wave_generator 100000 0.2 0.1 2 10
+```
+
+---
+
+# Sine Wave SCPI - Remote Fixed-Frequency Output (Python)
+
+**Folder:** `src/python/`  
+**File:** `sine_wave_scpi.py`
+
+This is the Python/SCPI version of the sine generator. It controls the Red Pitaya over
+Ethernet, so it can be run from a lab PC without compiling C code on the board.
+
+## **Usage**
+
+```bash
+python sine_wave_scpi.py <rp_ip> <frequency_hz> [amplitude_v] [offset_v] [channel] [duration_s]
+```
+
+### **Examples**
+
+```bash
+python sine_wave_scpi.py 192.168.1.120 1000
+python sine_wave_scpi.py 192.168.1.120 7000 0.4 0.0 1
+python sine_wave_scpi.py 192.168.1.120 100000 0.2 0.1 2 10
+```
+
+By default the script disables the output when it exits. Add `--leave-on` if you want
+the Red Pitaya output to keep running after the Python process finishes.
+
+---
+
+# FPGA Data Exchange SCPI - Send Batches and Read Results (Python)
+
+**Folder:** `src/python/`  
+**File:** `fpga_data_exchange_scpi.py`
+
+This script sends arbitrary waveform batches to a Red Pitaya fast output and reads
+one ADC buffer back after each batch. It is a PC-side data exchange loop for repeated
+experiments such as sending training examples and reading measured responses.
+
+Important limitation: this does not train a neural network inside the FPGA by itself.
+For true FPGA-side training or inference, the FPGA bitstream must implement that logic.
+This script provides the SCPI data-transfer layer around the existing Red Pitaya generator
+and acquisition blocks.
+
+## **Input Data**
+
+Use a `.npy` or CSV file. A 1D file is treated as one waveform. A 2D file is treated as
+multiple batches, one row per output waveform. Samples must be normalized from `-1` to `1`.
+
+## **Usage**
+
+```bash
+python fpga_data_exchange_scpi.py <rp_ip> <input_file> [options]
+```
+
+### **Examples**
+
+```bash
+python fpga_data_exchange_scpi.py 192.168.1.120 training_batch.csv
+python fpga_data_exchange_scpi.py 192.168.1.120 training_batch.npy --frequency 10000 --loops 20
+python fpga_data_exchange_scpi.py 192.168.1.120 training_batch.csv --gen-channel 1 --acq-channel 2 --output-file results.csv
+```
+
+The result CSV stores one row per batch readout, including summary values and the acquired
+ADC samples.
 
 ---
 
