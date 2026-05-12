@@ -11,40 +11,59 @@ except ImportError:
     import scpi
 
 
+DEFAULT_RP_IP = "169.254.121.63"
+DEFAULT_FREQUENCY_HZ = 1000.0
+DEFAULT_AMPLITUDE_V = 0.5
+DEFAULT_OFFSET_V = 0.0
+DEFAULT_CHANNEL = 1
+DEFAULT_DURATION_S = 0.0
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Generate a sine wave on a Red Pitaya fast analog output."
     )
-    parser.add_argument("rp_ip", help="Red Pitaya IP address or hostname")
-    parser.add_argument("frequency_hz", type=float, help="Sine frequency in Hz")
+    parser.add_argument(
+        "rp_ip",
+        nargs="?",
+        default=DEFAULT_RP_IP,
+        help=f"Red Pitaya IP address or hostname. Default: {DEFAULT_RP_IP}",
+    )
+    parser.add_argument(
+        "frequency_hz",
+        nargs="?",
+        type=float,
+        default=DEFAULT_FREQUENCY_HZ,
+        help=f"Sine frequency in Hz. Default: {DEFAULT_FREQUENCY_HZ:g}",
+    )
     parser.add_argument(
         "amplitude_v",
         nargs="?",
         type=float,
-        default=0.5,
-        help="Peak amplitude in V, 0 to 1. Default: 0.5",
+        default=DEFAULT_AMPLITUDE_V,
+        help=f"Peak amplitude in V, 0 to 1. Default: {DEFAULT_AMPLITUDE_V:g}",
     )
     parser.add_argument(
         "offset_v",
         nargs="?",
         type=float,
-        default=0.0,
-        help="DC offset in V, -1 to 1. Default: 0.0",
+        default=DEFAULT_OFFSET_V,
+        help=f"DC offset in V, -1 to 1. Default: {DEFAULT_OFFSET_V:g}",
     )
     parser.add_argument(
         "channel",
         nargs="?",
         type=int,
-        default=1,
+        default=DEFAULT_CHANNEL,
         choices=(1, 2),
-        help="Output channel, 1=OUT1 or 2=OUT2. Default: 1",
+        help=f"Output channel, 1=OUT1 or 2=OUT2. Default: {DEFAULT_CHANNEL}",
     )
     parser.add_argument(
         "duration_s",
         nargs="?",
         type=float,
-        default=0.0,
-        help="Run time in seconds. 0 means run until Ctrl+C. Default: 0",
+        default=DEFAULT_DURATION_S,
+        help=f"Run time in seconds. 0 means run until Ctrl+C. Default: {DEFAULT_DURATION_S:g}",
     )
     parser.add_argument(
         "--leave-on",

@@ -35,6 +35,7 @@ redpitaya-cold-atoms-tools/
 │   └── python/
 │       ├── fpga_data_exchange_scpi.py
 │       ├── laser_lock_scpi.py
+│       ├── sine_wave_scpi.ipynb
 │       ├── sine_wave_scpi.py
 │       └── phase_noise_measurement.py
 │
@@ -110,7 +111,7 @@ sine_wave_generator
 # Sine Wave SCPI - Remote Fixed-Frequency Output (Python)
 
 **Folder:** `src/python/`  
-**File:** `sine_wave_scpi.py`
+**Files:** `sine_wave_scpi.py`, `sine_wave_scpi.ipynb`
 
 This is the Python/SCPI version of the sine generator. It controls the Red Pitaya over
 Ethernet, so it can be run from a lab PC without compiling C code on the board.
